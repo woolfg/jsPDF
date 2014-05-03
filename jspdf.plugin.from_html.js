@@ -250,7 +250,6 @@
       renderer.setBlockBoundary();
       renderer.setBlockStyle(fragmentCSS);
     }
-	functionStack = [];
     px2pt = 0.264583 * 72 / 25.4;
     i = 0;
     l = cns.length;
@@ -397,6 +396,9 @@
 	  if (this.functionStack.length > 0) {
 		  if (this.functionStack[0](el) === true) {
 			  this.functionStack.shift();
+			  return true;
+		  } else {
+			  return false;
 		  }
 	  }
   };
@@ -513,6 +515,24 @@
         i++;
       }
       this.y += maxLineHeight * fontToUnitRatio;
+	  
+	  //if some function was executed, reset line drawing and calculate position and lines again
+	  //e.g. to stop text floating around an image
+	  if (this.executeFunctionStack() && lines.length > 0) {
+		  var localFragments = [];
+		  var localStyles = [];
+		  //create fragement array of 
+		  lines.forEach(function(line) {
+			localFragments.push(line[0][0]+" "); 
+			localStyles.push(line[0][1]);
+		  });
+		  //split lines again due to possible coordinate changes
+		  lines = this.splitFragmentsIntoLines(PurgeWhiteSpace(localFragments), localStyles);
+		  //reposition the current cursor
+		  out("ET", "Q");
+		  out("q", "BT", this.pdf.internal.getCoordinateString(this.x), this.pdf.internal.getVerticalCoordinateString(this.y), "Td");
+	  }	  
+	  
     }
     out("ET", "Q");
     return this.y += paragraphspacing_after;
