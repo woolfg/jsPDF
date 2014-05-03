@@ -1,7 +1,7 @@
 /** @preserve
  * jsPDF - PDF Document creation from JavaScript
- * Version 1.0.106-git Built on 2014-04-16T20:28
- *                           CommitID 71dbc3a379
+ * Version 1.0.119-git Built on 2014-04-29T03:48
+ *                           CommitID 119a246e55
  *
  * Copyright (c) 2010-2014 James Hall, https://github.com/MrRio/jsPDF
  *               2010 Aaron Spike, https://github.com/acspike
@@ -79,7 +79,8 @@ var jsPDF = (function(global) {
 			'legal'             : [612,  1008],
 			'junior-legal'      : [576,   360],
 			'ledger'            : [1224,  792],
-			'tabloid'           : [792,  1224]
+			'tabloid'           : [792,  1224],
+			'credit-card'       : [153,   243]
 		};
 
 	/**
@@ -555,7 +556,7 @@ var jsPDF = (function(global) {
 				bch = ch >> 8; // divide by 256
 				if (bch >> 8) {
 					/* something left after dividing by 256 second time */
-					throw new Error("Character at position " + i.toString(10) + " of string '"
+					throw new Error("Character at position " + i + " of string '"
 						+ text + "' exceeds 16bits. Cannot be encoded into UCS-2 BE");
 				}
 				newtext.push(bch);
@@ -623,10 +624,10 @@ var jsPDF = (function(global) {
 			out(drawColor);
 			// resurrecting non-default line caps, joins
 			if (lineCapID !== 0) {
-				out(lineCapID.toString(10) + ' J');
+				out(lineCapID + ' J');
 			}
 			if (lineJoinID !== 0) {
-				out(lineJoinID.toString(10) + ' j');
+				out(lineJoinID + ' j');
 			}
 			events.publish('addPage', { pageNumber : page });
 		},
@@ -1001,10 +1002,7 @@ var jsPDF = (function(global) {
 		};
 
 		API.line = function(x1, y1, x2, y2) {
-			out(
-				f2(x1 * k) + ' ' + f2((pageHeight - y1) * k) + ' m ' +
-				f2(x2 * k) + ' ' + f2((pageHeight - y2) * k) + ' l S');
-			return this;
+			return this.lines([[x2 - x1, y2 - y1]], x1, y1);
 		};
 
 		/**
@@ -1578,7 +1576,7 @@ var jsPDF = (function(global) {
 				throw new Error("Line cap style of '" + style + "' is not recognized. See or extend .CapJoinStyles property for valid styles");
 			}
 			lineCapID = id;
-			out(id.toString(10) + ' J');
+			out(id + ' J');
 
 			return this;
 		};
@@ -1599,7 +1597,7 @@ var jsPDF = (function(global) {
 				throw new Error("Line join style of '" + style + "' is not recognized. See or extend .CapJoinStyles property for valid styles");
 			}
 			lineJoinID = id;
-			out(id.toString(10) + ' j');
+			out(id + ' j');
 
 			return this;
 		};
@@ -1695,7 +1693,7 @@ var jsPDF = (function(global) {
 	 * pdfdoc.mymethod() // <- !!!!!!
 	 */
 	jsPDF.API = {events:[]};
-	jsPDF.version = "1.0.106-debug 2014-04-16T20:28:diegocr";
+	jsPDF.version = "1.0.119-debug 2014-04-29T03:48:diegocr";
 
 	if (typeof define === 'function') {
 		define(function() {
@@ -1705,7 +1703,7 @@ var jsPDF = (function(global) {
 		global.jsPDF = jsPDF;
 	}
 	return jsPDF;
-}(self));
+}(typeof self !== "undefined" && self || typeof window !== "undefined" && window || this));
 /**
  * jsPDF addHTML PlugIn
  * Copyright (c) 2014 Diego Casorran
@@ -2080,7 +2078,7 @@ var jsPDF = (function(global) {
 	 * Check to see if ArrayBuffer is supported
 	 */
 	jsPDFAPI.supportsArrayBuffer = function() {
-		return typeof ArrayBuffer === 'function';
+		return typeof ArrayBuffer === 'function' && typeof Uint8Array !== 'undefined';
 	};
 
 	/**
@@ -2100,9 +2098,11 @@ var jsPDF = (function(global) {
 	jsPDFAPI.isArrayBufferView = function(object) {
 		if(!this.supportsArrayBuffer())
 	        return false;
+		if(typeof Uint32Array === 'undefined')
+			return false;
 		return (object instanceof Int8Array ||
 				object instanceof Uint8Array ||
-				object instanceof Uint8ClampedArray ||
+				(typeof Uint8ClampedArray !== 'undefined' && object instanceof Uint8ClampedArray) ||
 				object instanceof Int16Array ||
 				object instanceof Uint16Array ||
 				object instanceof Int32Array ||
@@ -3765,9 +3765,9 @@ var jsPDF = (function(global) {
 			img, dp, trns,
 			colors, pal, smask;
 		
-		if(this.isString(imageData)) {
+	/*	if(this.isString(imageData)) {
 			
-		}
+		}*/
 		
 		if(this.isArrayBuffer(imageData))
 			imageData = new Uint8Array(imageData);
@@ -3927,7 +3927,7 @@ var jsPDF = (function(global) {
 										bpc, decode, imageIndex, alias, dp, trns, pal, smask);
 		}
 		
-		return info;
+		throw new Error("Unsupported PNG image data, try using JPEG instead.");
 	}
 
 })(jsPDF.API)
@@ -4112,11 +4112,11 @@ jsPDFAPI.addSVG = function(svgtext, x, y, w, h) {
 }
 
 })(jsPDF.API);
-/** @preserve 
-jsPDF split_text_to_size plugin
-Copyright (c) 2012 Willow Systems Corporation, willow-systems.com
-MIT license.
-*/
+/** @preserve
+ * jsPDF split_text_to_size plugin - MIT license.
+ * Copyright (c) 2012 Willow Systems Corporation, willow-systems.com
+ *               2014 Diego Casorran, https://github.com/diegocr
+ */
 /**
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -4125,10 +4125,10 @@ MIT license.
  * distribute, sublicense, and/or sell copies of the Software, and to
  * permit persons to whom the Software is furnished to do so, subject to
  * the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be
  * included in all copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
  * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
@@ -4162,12 +4162,11 @@ var getCharWidthsArray = API.getCharWidthsArray = function(text, options){
 	, widthsFractionOf = widths.fof ? widths.fof : 1
 	, kerning = options.kerning ? options.kerning : this.internal.getFont().metadata.Unicode.kerning
 	, kerningFractionOf = kerning.fof ? kerning.fof : 1
-	
+
 	// console.log("widths, kergnings", widths, kerning)
 
 	var i, l
 	, char_code
-	, char_width
 	, prior_char_code = 0 // for kerning
 	, default_char_width = widths[0] || widthsFractionOf
 	, output = []
@@ -4175,7 +4174,7 @@ var getCharWidthsArray = API.getCharWidthsArray = function(text, options){
 	for (i = 0, l = text.length; i < l; i++) {
 		char_code = text.charCodeAt(i)
 		output.push(
-			( widths[char_code] || default_char_width ) / widthsFractionOf + 
+			( widths[char_code] || default_char_width ) / widthsFractionOf +
 			( kerning[char_code] && kerning[char_code][prior_char_code] || 0 ) / kerningFractionOf
 		)
 		prior_char_code = char_code
@@ -4210,7 +4209,7 @@ var getStringUnitWidth = API.getStringUnitWidth = function(text, options) {
 	return getArraySum(getCharWidthsArray.call(this, text, options))
 }
 
-/** 
+/**
 returns array of lines
 */
 var splitLongWord = function(word, widths_array, firstLineMaxLen, maxLen){
@@ -4256,10 +4255,6 @@ var splitParagraphIntoLines = function(text, maxlen, options){
 		options = {}
 	}
 
-	var spaceCharWidth = getCharWidthsArray(' ', options)[0]
-
-	var words = text.split(' ')
-
 	var line = []
 	, lines = [line]
 	, line_length = options.textIndent || 0
@@ -4267,14 +4262,43 @@ var splitParagraphIntoLines = function(text, maxlen, options){
 	, current_word_length = 0
 	, word
 	, widths_array
+	, words = text.split(' ')
+	, spaceCharWidth = getCharWidthsArray(' ', options)[0]
+	, i, l, tmp, lineIndent
 
-	var i, l, tmp
+	if(options.lineIndent === -1) {
+		lineIndent = words[0].length +2;
+	} else {
+		lineIndent = options.lineIndent || 0;
+	}
+	if(lineIndent) {
+		var pad = Array(lineIndent).join(" "), wrds = [];
+		words.map(function(wrd) {
+			wrd = wrd.split(/\s*\n/);
+			if(wrd.length > 1) {
+				wrds = wrds.concat(wrd.map(function(wrd, idx) {
+					return (idx && wrd.length ? "\n":"") + wrd;
+				}));
+			} else {
+				wrds.push(wrd[0]);
+			}
+		});
+		words = wrds;
+		lineIndent = getStringUnitWidth(pad, options);
+	}
+
 	for (i = 0, l = words.length; i < l; i++) {
+		var force = 0;
+
 		word = words[i]
+		if(lineIndent && word[0] == "\n") {
+			word = word.substr(1);
+			force = 1;
+		}
 		widths_array = getCharWidthsArray(word, options)
 		current_word_length = getArraySum(widths_array)
 
-		if (line_length + separator_length + current_word_length > maxlen) {
+		if (line_length + separator_length + current_word_length > maxlen || force) {
 			if (current_word_length > maxlen) {
 				// this happens when you have space-less long URLs for example.
 				// we just chop these to size. We do NOT insert hiphens
@@ -4295,8 +4319,7 @@ var splitParagraphIntoLines = function(text, maxlen, options){
 
 			// now we attach new line to lines
 			lines.push(line)
-
-			line_length = current_word_length
+			line_length = current_word_length + lineIndent
 			separator_length = spaceCharWidth
 
 		} else {
@@ -4307,12 +4330,15 @@ var splitParagraphIntoLines = function(text, maxlen, options){
 		}
 	}
 
-	var output = []
-	for (i = 0, l = lines.length; i < l; i++) {
-		output.push( lines[i].join(' ') )
+	if(lineIndent) {
+		var postProcess = function(ln, idx) {
+			return (idx ? pad : '') + ln.join(" ");
+		};
+	} else {
+		var postProcess = function(ln) { return ln.join(" ")};
 	}
-	return output
 
+	return lines.map(postProcess);
 }
 
 /**
@@ -4360,7 +4386,7 @@ API.splitTextToSize = function(text, maxlen, options) {
 			return 	{
 				widths: options.widths
 				, kerning: options.kerning
-			}			
+			}
 		}
 
 		// then use default values
@@ -4371,11 +4397,11 @@ API.splitTextToSize = function(text, maxlen, options) {
 	}).call(this, options)
 
 	// first we split on end-of-line chars
-	var paragraphs 
-	if (text.match(/[\n\r]/)) {
-		paragraphs = text.split(/\r\n|\r|\n/g)
+	var paragraphs
+	if(Array.isArray(text)) {
+		paragraphs = text;
 	} else {
-		paragraphs = [text]
+		paragraphs = text.split(/\r?\n/);
 	}
 
 	// now we convert size (max length of line) into "font size units"
@@ -4386,13 +4412,14 @@ API.splitTextToSize = function(text, maxlen, options) {
 	// this may change in the future?
 	// until then, proportional_maxlen is likely to be in 'points'
 
-	// If first line is to be indented (shorter or longer) than maxLen 
+	// If first line is to be indented (shorter or longer) than maxLen
 	// we indicate that by using CSS-style "text-indent" option.
 	// here it's in font units too (which is likely 'points')
 	// it can be negative (which makes the first line longer than maxLen)
-	newOptions.textIndent = options.textIndent ? 
-		options.textIndent * 1.0 * this.internal.scaleFactor / fsize : 
+	newOptions.textIndent = options.textIndent ?
+		options.textIndent * 1.0 * this.internal.scaleFactor / fsize :
 		0
+	newOptions.lineIndent = options.lineIndent;
 
 	var i, l
 	, output = []
@@ -4406,7 +4433,7 @@ API.splitTextToSize = function(text, maxlen, options) {
 		)
 	}
 
-	return output 
+	return output
 }
 
 })(jsPDF.API);
@@ -7525,7 +7552,7 @@ var Deflater = (function(obj) {
 */
 
 
-(function() {
+(function(global) {
   var PNG;
 
   PNG = (function() {
@@ -7563,7 +7590,7 @@ var Deflater = (function(obj) {
     APNG_BLEND_OP_OVER = 1;
 
     function PNG(data) {
-      var chunkSize, colors, palLen, delayDen, delayNum, frame, i, index, key, section, short, text, _i, _j, _ref;
+      var chunkSize, colors, palLen, delayDen, delayNum, frame, i, index, key, section, palShort, text, _i, _j, _ref;
       this.data = data;
       this.pos = 8;
       this.palette = [];
@@ -7642,10 +7669,10 @@ var Deflater = (function(obj) {
                 /*
                  * According to the PNG spec trns should be increased to the same size as palette if shorter
                  */
-                //short = 255 - this.transparency.indexed.length;
-                short = palLen - this.transparency.indexed.length;
-                if (short > 0) {
-                  for (i = _j = 0; 0 <= short ? _j < short : _j > short; i = 0 <= short ? ++_j : --_j) {
+                //palShort = 255 - this.transparency.indexed.length;
+                palShort = palLen - this.transparency.indexed.length;
+                if (palShort > 0) {
+                  for (i = _j = 0; 0 <= palShort ? _j < palShort : _j > palShort; i = 0 <= palShort ? ++_j : --_j) {
                     this.transparency.indexed.push(255);
                   }
                 }
@@ -7728,7 +7755,7 @@ var Deflater = (function(obj) {
     };
 
     PNG.prototype.decodePixels = function(data) {
-      var byte, c, col, i, left, length, p, pa, paeth, pb, pc, pixelBytes, pixels, pos, row, scanlineLength, upper, upperLeft, _i, _j, _k, _l, _m;
+      var abyte, c, col, i, left, length, p, pa, paeth, pb, pc, pixelBytes, pixels, pos, row, scanlineLength, upper, upperLeft, _i, _j, _k, _l, _m;
       if (data == null) {
         data = this.imgData;
       }
@@ -7753,31 +7780,31 @@ var Deflater = (function(obj) {
             break;
           case 1:
             for (i = _j = 0; _j < scanlineLength; i = _j += 1) {
-              byte = data[pos++];
+              abyte = data[pos++];
               left = i < pixelBytes ? 0 : pixels[c - pixelBytes];
-              pixels[c++] = (byte + left) % 256;
+              pixels[c++] = (abyte + left) % 256;
             }
             break;
           case 2:
             for (i = _k = 0; _k < scanlineLength; i = _k += 1) {
-              byte = data[pos++];
+              abyte = data[pos++];
               col = (i - (i % pixelBytes)) / pixelBytes;
               upper = row && pixels[(row - 1) * scanlineLength + col * pixelBytes + (i % pixelBytes)];
-              pixels[c++] = (upper + byte) % 256;
+              pixels[c++] = (upper + abyte) % 256;
             }
             break;
           case 3:
             for (i = _l = 0; _l < scanlineLength; i = _l += 1) {
-              byte = data[pos++];
+              abyte = data[pos++];
               col = (i - (i % pixelBytes)) / pixelBytes;
               left = i < pixelBytes ? 0 : pixels[c - pixelBytes];
               upper = row && pixels[(row - 1) * scanlineLength + col * pixelBytes + (i % pixelBytes)];
-              pixels[c++] = (byte + Math.floor((left + upper) / 2)) % 256;
+              pixels[c++] = (abyte + Math.floor((left + upper) / 2)) % 256;
             }
             break;
           case 4:
             for (i = _m = 0; _m < scanlineLength; i = _m += 1) {
-              byte = data[pos++];
+              abyte = data[pos++];
               col = (i - (i % pixelBytes)) / pixelBytes;
               left = i < pixelBytes ? 0 : pixels[c - pixelBytes];
               if (row === 0) {
@@ -7797,7 +7824,7 @@ var Deflater = (function(obj) {
               } else {
                 paeth = upperLeft;
               }
-              pixels[c++] = (byte + paeth) % 256;
+              pixels[c++] = (abyte + paeth) % 256;
             }
             break;
           default:
@@ -7868,9 +7895,12 @@ var Deflater = (function(obj) {
       return ret;
     };
 
-    scratchCanvas = document.createElement('canvas');
-
-    scratchCtx = scratchCanvas.getContext('2d');
+    try {
+        scratchCanvas = global.document.createElement('canvas');
+        scratchCtx = scratchCanvas.getContext('2d');
+    } catch(e) {
+        return -1;
+    }
 
     makeImage = function(imageData) {
       var img;
@@ -7964,9 +7994,9 @@ var Deflater = (function(obj) {
 
   })();
 
-  window.PNG = PNG;
+  global.PNG = PNG;
 
-}).call(this);
+})(typeof window !== "undefined" && window || this);
 /*
  * Extracted from pdf.js
  * https://github.com/andreasgal/pdf.js
@@ -8091,6 +8121,9 @@ var DecodeStream = (function() {
 })();
 
 var FlateStream = (function() {
+  if (typeof Uint32Array === 'undefined') {
+    return undefined;
+  }
   var codeLenCodeMap = new Uint32Array([
     16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15
   ]);
@@ -8618,4 +8651,4 @@ var FlateStream = (function() {
 		};
 	}
 
-})(self);
+})(typeof self !== "undefined" && self || typeof window !== "undefined" && window || this);
