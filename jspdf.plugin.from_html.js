@@ -26,7 +26,7 @@
  */
 
 (function(jsPDFAPI) {
-  var DrillForContent, FontNameDB, FontStyleMap, FontWeightMap, GetCSS, PurgeWhiteSpace, Renderer, ResolveFont, ResolveUnitedNumber, UnitedNumberMap, elementHandledElsewhere, images, loadImgs, process, tableToJson;
+  var DrillForContent, FontNameDB, FloatMap, FontStyleMap, FontWeightMap, GetCSS, PurgeWhiteSpace, Renderer, ResolveFont, ResolveUnitedNumber, UnitedNumberMap, elementHandledElsewhere, images, loadImgs, process, tableToJson;
   PurgeWhiteSpace = function(array) {
     var fragment, i, l, lTrimmed, r, rTrimmed, trailingSpace;
     i = 0;
@@ -71,6 +71,7 @@
     this.y = y;
     this.settings = settings;
     this.init();
+	this.functionStack = [];
     return this;
   };
   ResolveFont = function(css_font_family_string) {
@@ -151,6 +152,8 @@
     css["font-size"] = ResolveUnitedNumber(computedCSSElement("font-size")) || 1;
     css["line-height"] = ResolveUnitedNumber(computedCSSElement("line-height")) || 1;
     css["display"] = (computedCSSElement("display") === "inline" ? "inline" : "block");
+	//get float css for image floating
+	css["float"] = FloatMap[computedCSSElement("cssFloat")] || "none";
     if (css["display"] === "block") {
       css["margin-top"] = ResolveUnitedNumber(computedCSSElement("margin-top")) || 0;
       css["margin-bottom"] = ResolveUnitedNumber(computedCSSElement("margin-bottom")) || 0;
@@ -247,25 +250,63 @@
       renderer.setBlockBoundary();
       renderer.setBlockStyle(fragmentCSS);
     }
+	functionStack = [];
     px2pt = 0.264583 * 72 / 25.4;
     i = 0;
     l = cns.length;
     while (i < l) {
       cn = cns[i];
+	  
       if (typeof cn === "object") {
         if (cn.nodeType === 8 && cn.nodeName === "#comment") {
           if (cn.textContent.match("ADD_PAGE")) {
             renderer.pdf.addPage();
             renderer.y = renderer.pdf.margins_doc.top;
           }
+		/*** IMAGE RENDERING ***/
         } else if (cn.nodeType === 1 && !SkipNode[cn.nodeName]) {
           if (cn.nodeName === "IMG" && images[cn.getAttribute("src")]) {
             if ((renderer.pdf.internal.pageSize.height - renderer.pdf.margins_doc.bottom < renderer.y + cn.height) && (renderer.y > renderer.pdf.margins_doc.top)) {
               renderer.pdf.addPage();
               renderer.y = renderer.pdf.margins_doc.top;
             }
-            renderer.pdf.addImage(images[cn.getAttribute("src")], renderer.x, renderer.y, cn.width, cn.height);
-            renderer.y += cn.height;
+			var imagesCSS = GetCSS(cn);
+			var imageX = renderer.x;
+			//if float is set to right, move the image to the right border
+			if (imagesCSS['float'] !== undefined && imagesCSS['float'] === 'right') {
+				imageX += renderer.settings.width-cn.width;
+			}			
+            renderer.pdf.addImage(images[cn.getAttribute("src")], imageX, renderer.y, cn.width, cn.height);
+			//if the float prop is specified we have to float the text around the image
+			if (imagesCSS['float'] !== undefined) {
+				if (imagesCSS['float'] === 'right' || imagesCSS['float'] === 'left') {
+	
+					//add functiont to set back coordinates after image rendering
+					renderer.functionStack.push((function(currentX , currentY, currentWidth, el) {
+						if (renderer.y > currentY) {
+							renderer.x = currentX;
+							renderer.settings.width = currentWidth;
+							return true;
+						} else {
+							return false;
+						}
+					}).bind(this, renderer.x, renderer.y+cn.height, renderer.settings.width));
+					
+					//if right decrease the available page width by the image width
+					if (imagesCSS['float'] === 'right')  {
+						renderer.settings.width -= cn.width;
+					//if left just add the image width to the X coordinate
+					//(available page width is calculated automatically)
+					} else if (imagesCSS['float'] === 'left') {
+						renderer.x += cn.width;
+					}
+				}
+			//if no floating is set, move the rendering cursor after the image height
+			} else {
+				renderer.y += cn.height;
+			}
+			
+		  /*** TABLE RENDERING ***/
           } else if (cn.nodeName === "TABLE") {
             table2json = tableToJson(cn, renderer);
             renderer.y += 10;
@@ -350,6 +391,15 @@
       y: this.y
     };
   };
+  //Checks if we have some function on our stack to execute
+  //e.g. to end text floating around an image
+  Renderer.prototype.executeFunctionStack = function(el) {
+	  if (this.functionStack.length > 0) {
+		  if (this.functionStack[0](el) === true) {
+			  this.functionStack.shift();
+		  }
+	  }
+  };
   Renderer.prototype.splitFragmentsIntoLines = function(fragments, styles) {
     var currentLineLength, defaultFontSize, ff, fontMetrics, fontMetricsCache, fragment, fragmentChopped, fragmentLength, fragmentSpecificMetrics, fs, k, line, lines, maxLineLength, style;
     defaultFontSize = 12;
@@ -403,6 +453,8 @@
   };
   Renderer.prototype.RenderTextFragment = function(text, style) {
     var defaultFontSize, font;
+	
+	
     if (this.pdf.internal.pageSize.height - this.pdf.margins_doc.bottom < this.y + this.pdf.internal.getFontSize()) {
       this.pdf.internal.write("ET", "Q");
       this.pdf.addPage();
@@ -503,6 +555,11 @@
     normal: "normal",
     italic: "italic",
     oblique: "italic"
+  };
+  FloatMap = {
+	none : 'none',
+	right: 'right',
+	left: 'left'
   };
   UnitedNumberMap = {
     normal: 1
