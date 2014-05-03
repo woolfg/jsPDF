@@ -291,12 +291,10 @@
 						}
 					}).bind(this, renderer.x, renderer.y+cn.height, renderer.settings.width));
 					
-					//if right decrease the available page width by the image width
-					if (imagesCSS['float'] === 'right')  {
-						renderer.settings.width -= cn.width;
+					//if floating is set we decrease the available width by the image width
+					renderer.settings.width -= cn.width;
 					//if left just add the image width to the X coordinate
-					//(available page width is calculated automatically)
-					} else if (imagesCSS['float'] === 'left') {
+					if (imagesCSS['float'] === 'left') {
 						renderer.x += cn.width;
 					}
 				}
